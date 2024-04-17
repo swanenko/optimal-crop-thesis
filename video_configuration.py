@@ -11,7 +11,7 @@ DEFAULT_SETTINGS = {
     'movement': 'free',
     'size': 'minimal',
     'annotate' : [],
-    'strategy': 'center'
+    'strategy': 'basic'
 }
 
 class Config:

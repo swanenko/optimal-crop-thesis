@@ -39,6 +39,7 @@ class VideoAnnotator:
         self.config = config
         self.draw_strategy = {}
         self.annotation_data = {}
+        self.fullbox = None
 
 
     def draw_bbox(self, frame, bbox, color=(255, 0, 0), thickness=3):
@@ -47,6 +48,11 @@ class VideoAnnotator:
         else:
             cv2.rectangle(frame, (int(bbox['minX']), int(bbox['minY'])), 
                         (int(bbox['maxX']), int(bbox['maxY'])), color, thickness)
+        return frame
+    
+    def draw_fullbox(self, frame, color=(0, 0, 255), thickness=3):
+        cv2.rectangle(frame, (int(self.fullbox[0]['minX']), int(self.fullbox[0]['minY'])), 
+                    (int(self.fullbox[0]['maxX']), int(self.fullbox[0]['maxY'])), color, thickness)
         return frame
 
     def draw_landmarks(self, frame, landmarks):
@@ -73,6 +79,8 @@ class VideoAnnotator:
             elif annotation_type == 'fbox':
                 with open(self.config.get_log_path(include_fbox=True), 'r') as file:
                     self.annotation_data[annotation_type] = json.load(file)
+                if (len(self.annotation_data[annotation_type]) == 1):
+                    self.fullbox = self.annotation_data[annotation_type]
                 self.draw_strategy[annotation_type] = self.draw_fbox
             
             else:
@@ -90,7 +98,7 @@ class VideoAnnotator:
 
         cap = cv2.VideoCapture(self.config.src)
         fourcc = cv2.VideoWriter_fourcc(*'MP4V')
-        out = cv2.VideoWriter(self.config.get_video_path(include_detector=True), fourcc, self.config.metadata['fps'], (int(self.config.metadata['frame_width']), int(self.config.metadata['frame_height'])))
+        out = cv2.VideoWriter(self.config.get_video_path(include_full_config=True), fourcc, self.config.metadata['fps'], (int(self.config.metadata['frame_width']), int(self.config.metadata['frame_height'])))
         frame_index = 0
 
         if not cap.isOpened():
@@ -102,6 +110,8 @@ class VideoAnnotator:
                 for annotation_type in self.config.annotate:
                     if frame_index < len(self.annotation_data[annotation_type]):
                         frame = self.draw_strategy[annotation_type](frame, self.annotation_data[annotation_type][frame_index])
+                if self.fullbox:
+                    frame = self.draw_fullbox(frame)
 
                 out.write(frame)
             else:
