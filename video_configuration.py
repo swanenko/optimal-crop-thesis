@@ -7,7 +7,7 @@ DEFAULT_SETTINGS = {
     'detector': 'mpipeseg',
     'multiple': False,
     'body': 'full_body',
-    'process': ['stable', 'zoom'],
+    'process': ['stable'],
     'movement': 'free',
     'size': 'minimal',
     'annotate' : [],
@@ -22,7 +22,7 @@ class Config:
     detector = 'mpipe'
     multiple = False
     body = 'full_body'
-    process = ['stable', 'zoom']
+    process = ['stable']
     movement = 'free'
     size = 'minimal'
     metadata = {}
@@ -79,9 +79,9 @@ class Config:
     @classmethod
     def get_log_path(cls, include_detector=False, include_full_config=False, include_fbox=False,include_stats=False, custom_name=""):
         video_name = os.path.splitext(os.path.basename(cls.src))[0]
+        process_settings = '_'.join(cls.process)
 
         if include_full_config:
-            process_settings = '_'.join(cls.process)
             multiple_setting = 'multiple' if cls.multiple else 'single'
             configurations = f"{cls.detector}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
         elif include_detector:
@@ -89,7 +89,7 @@ class Config:
         elif include_stats:
             configurations = "stats"
         elif include_fbox:
-            configurations = cls.movement
+            configurations = f"{process_settings}_{cls.movement}_{cls.size}"
         else:
             configurations = custom_name
         
@@ -97,13 +97,15 @@ class Config:
         return os.path.join(cls._base_log_dir, video_name, log_file_name)
     
     @classmethod
-    def get_video_path(cls, include_detector=False, include_full_config=False, include_stats=False, custom_name=""):
+    def get_video_path(cls, include_detector=False, include_full_config=False, annotate=False, include_stats=False, custom_name=""):
         video_name = os.path.splitext(os.path.basename(cls.src))[0]
+        process_settings = '_'.join(cls.process)
+        multiple_setting = 'multiple' if cls.multiple else 'single'
 
         if include_full_config:
-            process_settings = '_'.join(cls.process)
-            multiple_setting = 'multiple' if cls.multiple else 'single'
             configurations = f"{cls.detector}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
+        elif annotate:
+            configurations = f"annotate_{cls.detector}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
         elif include_detector:
             configurations = f"{cls.detector}"
         elif include_stats:

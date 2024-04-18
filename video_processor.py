@@ -6,6 +6,8 @@ import pandas as pd
 import seaborn as sns
 from video_detector import VideoDetector
 from collections import Counter
+from scipy.signal import savgol_filter
+from fractions import Fraction
 
 body_configurations = {
     "portrait": range(0, 12),
@@ -22,9 +24,10 @@ class VideoProcessor:
 
     def detect_and_correct_consecutive_outliers(self, data, threshold, set):
         print(set)
+        print(threshold)
         corrected_data = data.copy() 
         for i in range(1, len(data)):
-            if abs(data[i] - data[i - 1]) > threshold:
+            if abs(data[i] - data[i - 1]) > threshold/2:
                 if (abs(data[i] - data[i + 1]) > threshold/2):
                     print(data[i - 1], " ", data[i], data[i+1])
                     corrected_data[i] = corrected_data[i - 1] 
@@ -52,11 +55,11 @@ class VideoProcessor:
         plt.suptitle('Histogram Analysis of Differences')
         plt.savefig(f'boxplot_differences_{set}.png')
 
-    def filter_outliers(self):
-        minX = [bbox['minX'] for bbox in self.bbox]
-        minY = [bbox['minY'] for bbox in self.bbox]
-        width = [bbox['maxX'] - bbox['minX'] for bbox in self.bbox]
-        height = [bbox['maxY'] - bbox['minY'] for bbox in self.bbox]
+    def filter_outliers(self, list):
+        minX = [bbox['minX'] for bbox in list]
+        minY = [bbox['minY'] for bbox in list]
+        width = [bbox['maxX'] - bbox['minX'] for bbox in list]
+        height = [bbox['maxY'] - bbox['minY'] for bbox in list]
 
         corrected_minX = self.detect_and_correct_consecutive_outliers(minX, self.dimensions[0] * 0.1, "X")
         corrected_minY = self.detect_and_correct_consecutive_outliers(minY, self.dimensions[1] * 0.1, "Y")
@@ -68,7 +71,7 @@ class VideoProcessor:
                         'maxX': corrected_maxX[i], 'maxY': corrected_maxY[i]}
                         for i in range(len(corrected_minX))]
 
-        self.bbox = updated_bboxes
+        return updated_bboxes
 
     def find_extremes(self, list):
         if not list:
@@ -106,19 +109,88 @@ class VideoProcessor:
         else:
             print("Primary movement is vertical.")
 
-    def free(self):
+    def savgol_stabilize(self,  data):
+        iterations = len(data)
+        result = []
 
+        min_x_values = [fbox['minX'] for fbox in data]
+        min_y_values = [fbox['minY'] for fbox in data]
+        
+        yhat_min_x = savgol_filter(min_x_values, 51, 3)
+        yhat_min_y = savgol_filter(min_y_values, 51, 3) 
+
+        for i in range(iterations):
+
+            result.append({
+                'minX': int(yhat_min_x[i]),
+                'minY': int(yhat_min_y[i]),
+                'maxX': int(yhat_min_x[i]+self.dimensions[0]),
+                'maxY': int(yhat_min_y[i]+self.dimensions[1]),
+            })
+        return result
+    
+    def adjust_frame_size(self, list):
+        for box in list:
+            if box['minX'] < 0:
+                box['minX'] = 0
+                box['maxX'] = self.dimensions[0]  
+            elif box['maxX'] > self.config.metadata['frame_width']:
+                box['maxX'] = self.config.metadata['frame_width']
+                box['minX'] = self.config.metadata['frame_width'] - self.dimensions[0]  
+
+            if box['minY'] < 0:
+                box['minY'] = 0
+                box['maxY'] = self.dimensions[1]  
+            elif box['maxY'] > self.config.metadata['frame_height']:
+                box['maxY'] = self.config.metadata['frame_height']
+                box['minY'] = self.config.metadata['frame_height'] - self.dimensions[1]  
+            
+        return list
+
+    def zoom(self):
+        if self.config.size == 'minimal':
+            fraction = Fraction(self.dimensions[0], self.dimensions[1])
+            aspect_ratio = (fraction.numerator, fraction.denominator)
+        else:
+            aspect_ratio = self.config.size
+
+        factor=2
         for bbox in self.bbox:
-
             bbox_width = bbox['maxX'] - bbox['minX']
             bbox_height = bbox['maxY'] - bbox['minY']
           
             center_x = bbox['minX'] + (bbox_width//2)
             center_y = bbox['minY'] + (bbox_height//2)
 
+            if bbox_width / bbox_height > aspect_ratio[0] / aspect_ratio[1]:
+                cropped_height = max(bbox_height * factor, bbox_width * factor * aspect_ratio[1] / aspect_ratio[0])
+                cropped_width = cropped_height * aspect_ratio[0] / aspect_ratio[1]
+            else:
+                cropped_width = max(bbox_width * factor, bbox_height * factor * aspect_ratio[0] / aspect_ratio[1])
+                cropped_height = cropped_width * aspect_ratio[1] / aspect_ratio[0]
+
+            frame_min_x = center_x - cropped_width / 2
+            frame_min_y = center_y - cropped_height / 2
+            frame_max_x = center_x + cropped_width / 2
+            frame_max_y = center_y + cropped_height / 2
+
+            self.fbox.append({
+                'minX': frame_min_x,
+                'minY': frame_min_y,
+                'maxX': frame_max_x,
+                'maxY': frame_max_y,
+            })
+
+    def free(self):
+        for bbox in self.bbox:
+
+            bbox_width = bbox['maxX'] - bbox['minX']
+            bbox_height = bbox['maxY'] - bbox['minY']
+            center_x = bbox['minX'] + (bbox_width//2)
+            center_y = bbox['minY'] + (bbox_height//2)
+
             frame_min_x = center_x - (self.dimensions[0] // 2)
             frame_min_y = center_y - (self.dimensions[1] // 2)
-
             frame_max_x = frame_min_x + self.dimensions[0] 
             frame_max_y = frame_min_y + self.dimensions[1]
 
@@ -194,6 +266,15 @@ class VideoProcessor:
 
         self.dimensions = (max(widths), max(heights))
 
+    def transform_dimensions_closest(x, y, aspect_ratio):
+        scale_width = (y * aspect_ratio[0]) / aspect_ratio[1]
+        scale_height = (x * aspect_ratio[1]) / aspect_ratio[0]
+
+        if abs(scale_width - x) < abs(scale_height - y):
+            return (int(scale_width), y)
+        else:
+            return (x, int(scale_height))
+
     def process_body_dimensions(self, body_mode):
         if (os.path.exists(self.config.get_log_path(custom_name=str(body_mode)))):
             with open(self.config.get_log_path(custom_name=str(body_mode)), 'r') as file:
@@ -253,13 +334,36 @@ class VideoProcessor:
                 self.bbox = json.load(file)
         
         self.get_video_dimensions()  
-        self.filter_outliers()
             
-        if not os.path.exists(self.config.get_log_path(custom_name=str(self.config.movement))):
-            getattr(self, self.config.movement)()
+        if not os.path.exists(self.config.get_log_path(include_fbox=True)):
 
-            self.analyze_movement_ranges(self.fbox)
+            if 'zoom' in self.config.process:
+                self.zoom()
+            else:
+                path = f"{self.config.movement}"
+                
+                if self.config.size != 'minimal':
+                    self.dimensions = self.transform_dimensions_closest(*self.dimensions, aspect_ratio=self.config.size)
+            
+                getattr(self, path)()
+                self.analyze_movement_ranges(self.fbox)
 
-            with open(self.config.get_log_path(custom_name=str(self.config.movement)), "w") as outfile:
+                if 'no_outliers' in self.config.process:
+                    self.fbox = self.filter_outliers(self.fbox)
+
+            if 'stable' in self.config.process:
+                self.fbox = self.savgol_stabilize(self.fbox)
+                
+            self.fbox = self.adjust_frame_size(self.fbox)
+
+            with open(self.config.get_log_path(include_fbox=True), "w") as outfile:
                 outfile.write(json.dumps(self.fbox))
-        
+            
+            with open(self.config.get_log_path(include_stats=True), "r") as stat_file:
+                stats = json.load(stat_file)
+            stats['out_width'] = self.dimensions[0]
+            stats['out_height'] = self.dimensions[1]
+
+            with open(self.config.get_log_path(include_stats=True), 'w') as file:
+                json.dump(stats, file, indent=4)
+            

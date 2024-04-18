@@ -98,7 +98,7 @@ class VideoAnnotator:
 
         cap = cv2.VideoCapture(self.config.src)
         fourcc = cv2.VideoWriter_fourcc(*'MP4V')
-        out = cv2.VideoWriter(self.config.get_video_path(include_full_config=True), fourcc, self.config.metadata['fps'], (int(self.config.metadata['frame_width']), int(self.config.metadata['frame_height'])))
+        out = cv2.VideoWriter(self.config.get_video_path(annotate=True), fourcc, self.config.metadata['fps'], (int(self.config.metadata['frame_width']), int(self.config.metadata['frame_height'])))
         frame_index = 0
 
         if not cap.isOpened():
