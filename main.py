@@ -17,7 +17,7 @@ def parse_arguments():
 
     parser.add_argument("--body", choices=['portrait', 'waist', 'legs', 'full_body'], default=DEFAULT_SETTINGS['body'])
 
-    parser.add_argument("--process", nargs='+', choices=['zoom', 'stable', 'no_outliers', 'pose_anchor'], default=DEFAULT_SETTINGS['process'])
+    parser.add_argument("--process", nargs='*', choices=['zoom', 'stable', 'no_outliers', 'pose_anchor'], default=DEFAULT_SETTINGS['process'])
     parser.add_argument("--strategy", nargs='+', choices=['basic', 'adaptive_movement', 'adaptive_zoom'], default=DEFAULT_SETTINGS['strategy'])
     parser.add_argument("--movement", choices=['free', 'horizontal', 'vertical', 'fullbox'], default=DEFAULT_SETTINGS['movement'])
     parser.add_argument("--size", type=parse_size, default=DEFAULT_SETTINGS['size'], help="Set the size of the output in 'W*H' format, e.g., '9*16'.")
@@ -60,8 +60,8 @@ def process_video(file_path, args):
     processor = VideoProcessor(Config)
     processor.process()
 
-    # annotator = VideoAnnotator(Config)
-    # annotator.process()
+    annotator = VideoAnnotator(Config)
+    annotator.process()
 
     cropper = VideoCropper(Config)
     cropper.process()

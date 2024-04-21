@@ -325,6 +325,23 @@ class VideoProcessor:
         with open(self.config.get_log_path(custom_name=str(body_mode)), "w") as outfile:
             outfile.write(json.dumps(result))
 
+    def normalize_bbox(self):
+        last_non_empty_bbox = None  
+        for i in range(len(self.bbox)):
+            if not self.bbox[i]:  
+                for j in range(i + 1, len(self.bbox)):
+                    if self.bbox[j]:
+                        self.bbox[i] = self.bbox[j].copy()  
+                        break
+                else:
+                    if last_non_empty_bbox is not None:
+                        self.bbox[i] = last_non_empty_bbox.copy()
+                    else:
+                        print("Bbox normalization error")
+                        pass
+            else:
+                last_non_empty_bbox = self.bbox[i] 
+
     def process(self):
         
         if self.config.body != 'full_body':
@@ -332,6 +349,8 @@ class VideoProcessor:
         else:
             with open(self.config.get_log_path(include_detector=True), 'r') as file:
                 self.bbox = json.load(file)
+        
+        self.normalize_bbox()
         
         self.get_video_dimensions()  
             

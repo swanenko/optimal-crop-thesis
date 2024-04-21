@@ -4,10 +4,10 @@ import cv2
 import json
 
 DEFAULT_SETTINGS = {
-    'detector': 'mpipeseg',
+    'detector': 'yolo',
     'multiple': False,
     'body': 'full_body',
-    'process': ['stable'],
+    'process': ['stable', 'no_outliers'],
     'movement': 'free',
     'size': 'minimal',
     'annotate' : [],
@@ -19,10 +19,10 @@ class Config:
     src = ""
     _base_log_dir = "log" 
     _base_out_dir = "processed" 
-    detector = 'mpipe'
+    detector = 'yolo'
     multiple = False
     body = 'full_body'
-    process = ['stable']
+    process = ['stable', 'no_outliers']
     movement = 'free'
     size = 'minimal'
     metadata = {}
