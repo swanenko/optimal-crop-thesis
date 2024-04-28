@@ -1,6 +1,15 @@
 import numpy as np
 import cv2
 import matplotlib as plt
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+mp_pose = mp.solutions.pose
+from mediapipe.framework.formats import landmark_pb2
+from mediapipe import solutions
+import json
 
 def flow_corr(L1, L2, d, w):
     # Ensure that the images are in float64 for better range during calculations
@@ -143,12 +152,119 @@ def non_max_suppression(boxes, scores, threshold=1e-1):
                 
     return boxes[keep]
 
-video_path = 'not-processed/20240405_163216.mp4'
-# for a in range(150, 200):
+def draw_landmarks_on_image(rgb_image, detection_result):
+  pose_landmarks_list = detection_result.pose_landmarks
+  annotated_image = np.copy(rgb_image)
+
+  # Loop through the detected poses to visualize.
+  for idx in range(len(pose_landmarks_list)):
+    pose_landmarks = pose_landmarks_list[idx]
+
+    # Draw the pose landmarks.
+    pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+    pose_landmarks_proto.landmark.extend([
+      landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in pose_landmarks
+    ])
+    solutions.drawing_utils.draw_landmarks(
+      annotated_image,
+      pose_landmarks_proto,
+      solutions.pose.POSE_CONNECTIONS,
+      solutions.drawing_styles.get_default_pose_landmarks_style())
+  return annotated_image
+
+def create_segm_mask_image(path, path_out):
+    base_options = python.BaseOptions(model_asset_path='assets/pose_landmarker.task')
+    options = vision.PoseLandmarkerOptions(
+        base_options=base_options,
+        output_segmentation_masks=True)
+    detector = vision.PoseLandmarker.create_from_options(options)
+
+    # STEP 3: Load the input image.
+    image = mp.Image.create_from_file(path)
+
+    # STEP 4: Detect pose landmarks from the input image.
+    detection_result = detector.detect(image)
+
+    # STEP 5: Process the detection result. In this case, visualize it.
+    annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
+    cv2.imwrite("ing.jpg",cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+
+    segmentation_mask = detection_result.segmentation_masks[0].numpy_view()
+    visualized_mask = np.repeat(segmentation_mask[:, :, np.newaxis], 3, axis=2) * 255
+
+    ones_indices = np.where(segmentation_mask == 1)
+    minY = np.min(ones_indices[0])
+    minX = np.min(ones_indices[1])
+    maxY = np.max(ones_indices[0])
+    maxX = np.max(ones_indices[1])
+    image = cv2.imread(path,1)
+    cv2.imwrite("mmm.jpg",visualized_mask)
+
+    gray_mask = visualized_mask[:, :, 0]  # Take one channel, as all channels are the same
+
+    contours, _ = cv2.findContours(gray_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if contours:
+        largest_contour = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(largest_contour)
+        cv2.rectangle(visualized_mask, (x, y), (x+w, y+h), (0, 255, 0), 2)  # Draw green bounding box
+    cv2.imwrite("bbxo1.jpg",visualized_mask)
+
+    visualized_mask_image = cv2.rectangle(visualized_mask, (x, y), (x+w, y+h), (255, 0, 0), 3)
+    cv2.imwrite("bbxo.jpg",visualized_mask_image)
+
+    annotated_image = draw_landmarks_on_image(visualized_mask, detection_result)
+    cv2.imwrite("bbxo546.jpg",cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+
+
+
+    # for i in range(segmentation_mask.shape[0]):
+    #     for j in range(segmentation_mask.shape[1]):
+    #         value = segmentation_mask[i, j]
+    #         if (value == 1.0):
+    #            print("yeah")
+
+    image = cv2.imread(path,1)
+    landmarksX = []
+    landmarksY = []
+
+    landmarksX.sort()
+    landmarksY.sort()
+    hey = cv2.rectangle(visualized_mask_image, (x, y), (x+w, int(landmarksY[-1])), (255, 0, 0), 3)
+    cv2.imwrite("bbxooo.jpg", hey)
+
+def all_fboxes_one_picture(path, path_json, additional_path=None):
+    with open(path_json, 'r') as file:
+        data = json.load(file)
+    img = load_frame(video_path, 1000)
+
+    for a in range (0, len(data), 30):
+        if data[a]:
+            hey = cv2.rectangle(img, (int(data[a]['minX']), int(data[a]['minY'])), (int(data[a]['maxX']), int(data[a]['maxY'])), (255, 0, 0), 3)
+    
+    if additional_path:
+        with open(additional_path, 'r') as file:
+            data = json.load(file)
+        hey = cv2.rectangle(img, (int(data[0]['minX']), int(data[0]['minY'])), (int(data[0]['maxX']), int(data[0]['maxY'])), (0, 0, 255), 3)
+    cv2.imwrite('annotated_fboxs.jpg', hey)
+
+
+video_path = 'not-processed/curling1.mp4'
+json_path = "log/acroyoga3/yolo.json"
+additional_path = "log/acroyoga3/pose_anchor_fullbox_minimal.json"
+# for a in range(0, 100):
 #     input = load_frame(video_path, a)
 #     cv2.imwrite(f'experiments/frame_{a}.jpg', input)
 
-save_all_frames(video_path)
+input = load_frame(video_path, 200)
+cv2.imwrite(f'experiments/frame_200.jpg', input)
+
+
+# all_fboxes_one_picture(video_path, json_path, additional_path)
+# image_path = "experiments/00_dancing3_frame_507.jpg"
+# path_out = "experiments/00_dancing3_frame_507_out.jpg"
+# create_segm_mask_image(image_path, path_out)
+# save_all_frames(video_path)
 # input = load_frame(video_path, 5)
 # inputimage2 = load_frame(video_path, 6)
 

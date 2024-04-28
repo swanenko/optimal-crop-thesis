@@ -17,9 +17,10 @@ def parse_arguments():
 
     parser.add_argument("--body", choices=['portrait', 'waist', 'legs', 'full_body'], default=DEFAULT_SETTINGS['body'])
 
-    parser.add_argument("--process", nargs='*', choices=['zoom', 'stable', 'no_outliers', 'pose_anchor'], default=DEFAULT_SETTINGS['process'])
-    parser.add_argument("--strategy", nargs='+', choices=['basic', 'adaptive_movement', 'adaptive_zoom'], default=DEFAULT_SETTINGS['strategy'])
+    parser.add_argument("--process", nargs='*', choices=['zoom', 'stable', 'no_outliers'], default=DEFAULT_SETTINGS['process'])
+    parser.add_argument("--strategy", nargs='+', choices=[1, 2, 3], default=DEFAULT_SETTINGS['strategy'])
     parser.add_argument("--movement", choices=['free', 'horizontal', 'vertical', 'fullbox'], default=DEFAULT_SETTINGS['movement'])
+    parser.add_argument("--det_object", choices=['bicycle', 'tennis racket', 'skateboard'], default=DEFAULT_SETTINGS['det_object'])
     parser.add_argument("--size", type=parse_size, default=DEFAULT_SETTINGS['size'], help="Set the size of the output in 'W*H' format, e.g., '9*16'.")
     parser.add_argument("--annotate", nargs='+', choices=['landmarks', 'bbox', 'fbox'], default=DEFAULT_SETTINGS['annotate'])
     
@@ -60,8 +61,9 @@ def process_video(file_path, args):
     processor = VideoProcessor(Config)
     processor.process()
 
-    annotator = VideoAnnotator(Config)
-    annotator.process()
+    if args.annotate:
+        annotator = VideoAnnotator(Config)
+        annotator.process()
 
     cropper = VideoCropper(Config)
     cropper.process()

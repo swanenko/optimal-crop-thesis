@@ -19,8 +19,10 @@ class VideoDetector:
         self.config = config
         self.path = self.config.get_log_path(include_detector=True)
         self.video_keypoints = []
+        self.multiple_detections = []
         self.start_frame = 0
         self.frame = 0
+        self.det_classes = [0]
     
     def existing_detecion(self):
         return os.path.exists(self.path)
@@ -94,35 +96,51 @@ class VideoDetector:
                 output_layer_name = net.getUnconnectedOutLayersNames()
                 output_layers = net.forward(output_layer_name)
                 people = []
+                confidences = []
+                class_ids = []
+                conf_threshold = 0.5
+                nms_threshold = 0.4
                 for output in output_layers:
                     for detection in output:
                         scores = detection[5:]
                         class_id = np.argmax(scores)
                         confidence = scores[class_id]
 
-                        if class_id == 0 and confidence > 0.5:
+                        if class_id in self.det_classes and confidence > 0.5:
                             center_x = int(detection[0] * width)
                             center_y = int(detection[1] * height)
                             w = int(detection[2] * width)
                             h = int(detection[3] * height)
                             x = int(center_x - w / 2)
                             y = int(center_y - h / 2)
-
+                            class_ids.append(class_id)
+                            confidences.append(float(confidence))
                             people.append((x, y, w, h))
-                            break
+                            if not self.config.multiple:
+                                break
                 if people:
                     if self.config.multiple:
+                        indices = cv2.dnn.NMSBoxes(people, confidences, conf_threshold, nms_threshold)
                         min_x = float('inf')
                         min_y = float('inf')
                         max_x = float('-inf')
                         max_y = float('-inf')
-
-                        for person in people:
-                            min_x = min(min_x, person[0])  
-                            min_y = min(min_y, person[1]) 
-                            max_x = max(max_x, person[0] + person[2])  
-                            max_y = max(max_y, person[1] + person[3]) 
                         
+                        mutiple_detections_for_frame = []
+                        for i in indices:
+                            box = people[i]
+                            min_x = min(min_x, box[0])  
+                            min_y = min(min_y, box[1]) 
+                            max_x = max(max_x, box[0] + box[2])  
+                            max_y = max(max_y, box[1] + box[3]) 
+                            mutiple_detections_for_frame.append({
+                                'id' : int(class_ids[i]),
+                                'minX': box[0],
+                                'minY': box[1],
+                                'maxX': box[0] + box[2],
+                                'maxY': box[1] + box[3]})
+                            
+                        self.multiple_detections.append(mutiple_detections_for_frame)
                         self.video_keypoints.append({
                                         'minX': min_x,
                                         'minY': min_y,
@@ -202,6 +220,9 @@ class VideoDetector:
         if self.config.multiple and self.config.detector != 'yolo':
             print(f"Multiple people processing is possible only with yolo detector. Switching to yolo.")
 
+        if self.config.det_object:
+            self.det_classes.append(self.config.det_object)
+
         if self.config.detector == 'mpipeseg':
             self.process_mpipeseg(cap)
         elif self.config.detector == 'yolo':
@@ -215,6 +236,10 @@ class VideoDetector:
 
         with open(self.path, "w") as outfile:
             outfile.write(json.dumps(self.video_keypoints))
+        
+        if self.config.multiple:
+            with open(self.config.get_log_path(custom_name="multiple_bbox"), "w") as outfile:
+                outfile.write(json.dumps(self.multiple_detections))
 
         with open(self.config.get_log_path(include_stats=True), "r") as stat_file:
             stats = json.load(stat_file)

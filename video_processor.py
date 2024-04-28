@@ -380,8 +380,13 @@ class VideoProcessor:
             
             with open(self.config.get_log_path(include_stats=True), "r") as stat_file:
                 stats = json.load(stat_file)
-            stats['out_width'] = self.dimensions[0]
-            stats['out_height'] = self.dimensions[1]
+            
+            if 'fullbox' in self.config.movement:
+                stats['out_width'] = self.fbox[0]['maxX'] - self.fbox[0]['minX']
+                stats['out_height'] = self.fbox[0]['maxY'] - self.fbox[0]['minY']
+            else:
+                stats['out_width'] = self.dimensions[0]
+                stats['out_height'] = self.dimensions[1]
 
             with open(self.config.get_log_path(include_stats=True), 'w') as file:
                 json.dump(stats, file, indent=4)

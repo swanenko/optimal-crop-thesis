@@ -40,7 +40,8 @@ class VideoAnnotator:
         self.draw_strategy = {}
         self.annotation_data = {}
         self.fullbox = None
-
+        self.labels = None
+        self.multiple_boxes = None
 
     def draw_bbox(self, frame, bbox, color=(255, 0, 0), thickness=3):
         if not bbox:
@@ -53,6 +54,22 @@ class VideoAnnotator:
     def draw_fullbox(self, frame, color=(0, 0, 255), thickness=3):
         cv2.rectangle(frame, (int(self.fullbox[0]['minX']), int(self.fullbox[0]['minY'])), 
                     (int(self.fullbox[0]['maxX']), int(self.fullbox[0]['maxY'])), color, thickness)
+        return frame
+    
+    def draw_multiple_bboxes(self, frame, frame_index, color=(227,5,173), thickness=2):
+        for bbox in self.multiple_boxes[frame_index]:
+            cv2.rectangle(frame, (int(bbox['minX']), int(bbox['minY'])), 
+                        (int(bbox['maxX']), int(bbox['maxY'])), color, thickness)
+            label_text = self.labels[bbox['id']]
+            text_x = int(bbox['minX'])
+            text_y = int(bbox['minY'] - 10) if int(bbox['minY']) > 20 else int(bbox['minY'] + 20)
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.5
+            font_color = (255, 255, 255) 
+            font_thickness = 1
+
+            cv2.putText(frame, label_text, (text_x, text_y), font, font_scale, font_color, font_thickness)
         return frame
 
     def draw_landmarks(self, frame, landmarks):
@@ -89,8 +106,15 @@ class VideoAnnotator:
 
         if  self.config.body != 'full_body':
             with open(self.config.get_log_path(custom_name=str(self.config.body)), 'r') as file:
-                self.annotation_data[annotation_type] = json.load(file)
-            self.draw_strategy[annotation_type] = self.draw_bbox
+                self.annotation_data['full_body'] = json.load(file)
+        #     self.draw_strategy['full_body'] = self.draw_bbox
+        
+        if self.config.multiple:
+            with open(self.config.get_log_path(custom_name="multiple_bbox"), 'r') as file:
+                self.multiple_boxes = json.load(file)
+            with open("assets/yolov3.txt", 'r') as f:
+                self.labels = [line.strip() for line in f.readlines()]
+     
 
     def process(self):
 
@@ -112,7 +136,8 @@ class VideoAnnotator:
                         frame = self.draw_strategy[annotation_type](frame, self.annotation_data[annotation_type][frame_index])
                 if self.fullbox:
                     frame = self.draw_fullbox(frame)
-
+                if self.config.multiple:
+                    frame = self.draw_multiple_bboxes(frame, frame_index)
                 out.write(frame)
             else:
                 break

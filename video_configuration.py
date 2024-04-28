@@ -7,11 +7,12 @@ DEFAULT_SETTINGS = {
     'detector': 'yolo',
     'multiple': False,
     'body': 'full_body',
-    'process': ['stable', 'no_outliers'],
+    'process': [],
     'movement': 'free',
     'size': 'minimal',
     'annotate' : [],
-    'strategy': 'basic'
+    'strategy': 1,
+    'det_object' : None
 }
 
 class Config:
@@ -22,11 +23,12 @@ class Config:
     detector = 'yolo'
     multiple = False
     body = 'full_body'
-    process = ['stable', 'no_outliers']
+    process = []
     movement = 'free'
     size = 'minimal'
     metadata = {}
     annotate = []
+    det_object = None 
 
     @staticmethod
     def get_instance():
@@ -73,6 +75,18 @@ class Config:
         for setting in DEFAULT_SETTINGS:
             value = getattr(args, setting, DEFAULT_SETTINGS[setting])
             setattr(cls, setting, value)
+        if args.movement == "fullbox":
+            cls.process = [x for x in cls.process if x != "stable"]
+            cls.process = [x for x in cls.process if x != "no_outliers"]
+        if cls.det_object:
+            with open("assets/yolov3.txt", 'r') as f:
+                classes = [line.strip() for line in f.readlines()]
+                try:
+                    cls.det_object = classes.index(cls.det_object)
+                except ValueError:
+                    cls.det_object = None
+                    print("Detection object not found in the list.")
+            cls.multiple = True
         cls.get_video_metadata(cls)
         
     
@@ -83,7 +97,7 @@ class Config:
 
         if include_full_config:
             multiple_setting = 'multiple' if cls.multiple else 'single'
-            configurations = f"{cls.detector}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
+            configurations = f"{cls.detector}_{cls.strategy}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
         elif include_detector:
             configurations = f"{cls.detector}"
         elif include_stats:
@@ -103,9 +117,9 @@ class Config:
         multiple_setting = 'multiple' if cls.multiple else 'single'
 
         if include_full_config:
-            configurations = f"{cls.detector}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
+            configurations = f"{cls.detector}_{cls.strategy}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
         elif annotate:
-            configurations = f"annotate_{cls.detector}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
+            configurations = f"annotate_{cls.detector}_{cls.strategy}_{multiple_setting}_{cls.body}_{process_settings}_{cls.movement}_{cls.size}"
         elif include_detector:
             configurations = f"{cls.detector}"
         elif include_stats:

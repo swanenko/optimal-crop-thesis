@@ -1,0 +1,3 @@
+number_of_experiment,video1,video2,video3,video4,result
+0,not-processed/spring.mp4,processed/spring/yolo_single_full_body_stable_free_minimal.mp4,processed/spring/mpipelmark_single_full_body_stable_free_minimal.mp4,,eval
+1,not-processed/20240405_163216.mp4,processed/20240405_163216/yolo_1_single_full_body_stable_no_outliers_free_minimal.mp4,processed/20240405_163216/yolo_single_full_body_stable_free_minimal.mp4,,evaluation/01_stabilization_free.mp4

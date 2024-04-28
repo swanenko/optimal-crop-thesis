@@ -7,6 +7,33 @@ class VideoCropper:
         self.stats = None
         self.fbox = None
 
+    def crop_fullbox(self):
+        cap = cv2.VideoCapture(self.config.src)
+        fourcc = cv2.VideoWriter_fourcc(*'MP4V')
+
+        out = cv2.VideoWriter(self.config.get_video_path(include_full_config=True), 
+        fourcc, 
+        self.stats['fps'], 
+        (int(self.stats['out_width']), 
+         int(self.stats['out_height'])))
+
+        frame_index = 0
+
+        if not cap.isOpened():
+            print(f"Error opening video file: {self.config.src}")
+            return
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if ret:
+                point = self.fbox[0]
+                cropped_image = frame[int(point['minY']):int(point['maxY']), int(point['minX']):int(point['maxX'])]
+                out.write(cropped_image)
+            else:
+                break
+            frame_index += 1
+        cap.release()
+        out.release()
+
     def crop(self):
         cap = cv2.VideoCapture(self.config.src)
         fourcc = cv2.VideoWriter_fourcc(*'MP4V')
@@ -71,5 +98,7 @@ class VideoCropper:
 
         if 'zoom' in self.config.process:
             self.crop_with_zoom()
+        elif self.config.multiple:
+            self.crop_fullbox()
         else:
             self.crop()
